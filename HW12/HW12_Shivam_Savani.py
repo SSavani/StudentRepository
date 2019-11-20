@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 
-HW11 : Stevens Repo
+HW12 : Stevens Repo
 Author: Savani Shivam
-Date: 11/17/2019 2:00pm
+Date: 11/19/2019 2:00pm
 
 """
 
@@ -12,6 +12,9 @@ import os
 from prettytable import PrettyTable
 from collections import defaultdict
 import sqlite3
+from flask import Flask, render_template
+
+app = Flask(__name__)
 
 
 class Student:
@@ -128,8 +131,8 @@ class Repository:
     def __init__(self, dir_path):
         try:
             os.chdir(dir_path)
-        except FileNotFoundError:
-            print("Error: \n \tPlease provide Valid directory!!", FileNotFoundError)
+        except FileNotFoundError as e:
+            print("Error: \n \tPlease provide Valid directory!!", e)
 
         self.dir_path = dir_path
         self.students_filepath = os.path.join(dir_path, "students.txt")
@@ -160,7 +163,7 @@ class Repository:
         self.major_prettytable()
         self.student_prettytable()
         self.instructor_prettytable()
-        self.instructor_table_db(self.db_path)
+        # self.instructor_table_db(self.db_path)
 
     def file_reading_gen(self, filepath, sep, fields, header=True):
         """generator function to read tab separated text files and yield a list with all of the values
@@ -168,8 +171,8 @@ class Repository:
 
         try:
             fp = open(filepath)
-        except FileNotFoundError:
-            print("Error:\n \tCannot Open File at", filepath)
+        except FileNotFoundError as e:
+            print("Error:\n \tCannot Open File at", filepath, e)
         else:
             with fp:
                 try:
@@ -274,27 +277,39 @@ class Repository:
         print(pt)
         return pt
 
-    def instructor_table_db(self, db_path):
-        """Print instructor summary from database"""
-        try:
-            db = sqlite3.connect(db_path)
-            pt = PrettyTable(field_names=["CWID", "Name", "Dept", "Course", "Students"])
-            query = "select instructors.CWID, instructors.Name, instructors.Dept, grades.Course, " \
-                    "COUNT(grades.StudentCWID) as Num_Students from instructors join grades on CWID = InstructorCWID " \
-                    "group by CWID,Course order by CWID DESC, Num_Students DESC ;"
-            for row in db.execute(query):
-                pt.add_row(row)
-            print("\nInstructor Summary from Database")
-            print(pt)
-            return pt
-        except sqlite3.OperationalError as e:
-            print("Database Error: ", e)
+
+@app.route("/instructors")
+def instructor_table_db():
+    """Print instructor summary from database"""
+    db_path = os.path.join("C:\Stevens CS\sem3\810 Python prog\Assignments\HW12", "stevens.db")
+    try:
+        db = sqlite3.connect(db_path)
+    except sqlite3.OperationalError as e:
+        return f"Error: Unable to open database at path:{db_path}"
+    else:
+        pt = PrettyTable(field_names=["CWID", "Name", "Dept", "Course", "Students"])
+        query = "select instructors.CWID, instructors.Name, instructors.Dept, grades.Course, " \
+                "COUNT(grades.StudentCWID) as Num_Students from instructors join grades on CWID = InstructorCWID " \
+                "group by CWID,Course order by CWID ASC , Num_Students ASC ;"
+        summary = []
+        for row in db.execute(query):
+            cwid, name, dept, course, students = row
+            summary.append({'cwid': cwid, 'name': name, 'dept': dept, 'course': course, 'students': students})
+            pt.add_row(row)
+        db.close()
+        print("\nInstructor Summary from Database")
+        print(pt)
+        return render_template('/instructor_summary.html',
+                               title='Stevens Repository',
+                               table_title='Instructors Summary',
+                               instructors=summary)
 
 
 def main():
     # path = "C:\\Users\shiva\Desktop\StudentRepository-HW10_git\StudentRepository-HW10\HW10"
-    path = "C:\Stevens CS\sem3\810 Python prog\Assignments\HW11"
+    path = "C:\Stevens CS\sem3\810 Python prog\Assignments\HW12"
     try:
+        app.run(debug=True)
         repo_stevens = Repository(path)
     except ValueError as e:
         print("Value Error:", e)
